@@ -39,41 +39,70 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
     setIsTooltipVisible(false)
   }
 
+  // Recognition logic removed to favor robust blob recording due to 'network' errors in some environments
+
+
   const handleRecordClick = async () => {
     if (!isRecording) {
-      // Start recording
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const recorder = new MediaRecorder(stream)
-        recorder.ondataavailable = (e) => chunks.current.push(e.data)
+        setAudioResult("Recording...");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Use standard webm or fallback to mp4
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/mp4';
+
+        const recorder = new MediaRecorder(stream, { mimeType });
+        chunks.current = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.current.push(e.data);
+        };
+
         recorder.onstop = async () => {
-          const blob = new Blob(chunks.current, { type: chunks.current[0]?.type || 'audio/webm' })
-          chunks.current = []
-          const reader = new FileReader()
+          setAudioResult("Analyzing audio...");
+          const blob = new Blob(chunks.current, { type: mimeType });
+          chunks.current = [];
+
+          const reader = new FileReader();
           reader.onloadend = async () => {
-            const base64Data = (reader.result as string).split(',')[1]
             try {
-              const result = await window.electronAPI.analyzeAudioFromBase64(base64Data, blob.type)
-              setAudioResult(result.text)
-            } catch (err) {
-              setAudioResult('Audio analysis failed.')
+              const base64Data = (reader.result as string).split(',')[1];
+              const result = await window.electronAPI.analyzeAudioFromBase64(base64Data, blob.type);
+
+              setAudioResult(result.text);
+
+              // Automatically open chat for results
+              if (result.text && !result.text.includes("only supported when using Google Gemini")) {
+                onChatToggle();
+              }
+            } catch (err: any) {
+              console.error("Audio analysis error:", err);
+              setAudioResult(`Analysis failed: ${err.message || "Unknown error"}`);
             }
-          }
-          reader.readAsDataURL(blob)
-        }
-        setMediaRecorder(recorder)
-        recorder.start()
-        setIsRecording(true)
-      } catch (err) {
-        setAudioResult('Could not start recording.')
+          };
+          reader.readAsDataURL(blob);
+
+          // Cleanup tracks
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        setMediaRecorder(recorder);
+        recorder.start();
+        setIsRecording(true);
+      } catch (err: any) {
+        console.error("Failed to start recording:", err);
+        setAudioResult(`Microphone error: ${err.message || "Could not access microphone"}`);
       }
     } else {
-      // Stop recording
-      mediaRecorder?.stop()
-      setIsRecording(false)
-      setMediaRecorder(null)
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      setIsRecording(false);
+      setMediaRecorder(null);
     }
-  }
+  };
 
   // Remove handleChatSend function
 

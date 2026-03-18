@@ -5,6 +5,7 @@ import fs from "node:fs"
 import { app } from "electron"
 import { v4 as uuidv4 } from "uuid"
 import screenshot from "screenshot-desktop"
+import sharp from "sharp"
 
 export class ScreenshotHelper {
   private screenshotQueue: string[] = []
@@ -80,15 +81,27 @@ export class ScreenshotHelper {
   ): Promise<string> {
     try {
       hideMainWindow()
-      
+
       // Add a small delay to ensure window is hidden
       await new Promise(resolve => setTimeout(resolve, 100))
-      
+
       let screenshotPath = ""
 
       if (this.view === "queue") {
-        screenshotPath = path.join(this.screenshotDir, `${uuidv4()}.png`)
-        await screenshot({ filename: screenshotPath })
+        const tempPath = path.join(this.screenshotDir, `${uuidv4()}_temp.png`)
+        screenshotPath = path.join(this.screenshotDir, `${uuidv4()}.jpeg`)
+
+        await screenshot({ filename: tempPath })
+        await sharp(tempPath)
+          .resize(800, null, { withoutEnlargement: true })
+          .jpeg({ quality: 60 })
+          .toFile(screenshotPath)
+
+        try {
+          await fs.promises.unlink(tempPath)
+        } catch (e) {
+          console.error("Error cleaning up temp screenshot:", e)
+        }
 
         this.screenshotQueue.push(screenshotPath)
         if (this.screenshotQueue.length > this.MAX_SCREENSHOTS) {
@@ -102,8 +115,20 @@ export class ScreenshotHelper {
           }
         }
       } else {
-        screenshotPath = path.join(this.extraScreenshotDir, `${uuidv4()}.png`)
-        await screenshot({ filename: screenshotPath })
+        const tempPath = path.join(this.extraScreenshotDir, `${uuidv4()}_temp.png`)
+        screenshotPath = path.join(this.extraScreenshotDir, `${uuidv4()}.jpeg`)
+
+        await screenshot({ filename: tempPath })
+        await sharp(tempPath)
+          .resize(800, null, { withoutEnlargement: true })
+          .jpeg({ quality: 60 })
+          .toFile(screenshotPath)
+
+        try {
+          await fs.promises.unlink(tempPath)
+        } catch (e) {
+          console.error("Error cleaning up temp screenshot:", e)
+        }
 
         this.extraScreenshotQueue.push(screenshotPath)
         if (this.extraScreenshotQueue.length > this.MAX_SCREENSHOTS) {
@@ -131,7 +156,9 @@ export class ScreenshotHelper {
   public async getImagePreview(filepath: string): Promise<string> {
     try {
       const data = await fs.promises.readFile(filepath)
-      return `data:image/png;base64,${data.toString("base64")}`
+      const ext = path.extname(filepath).toLowerCase().replace('.', '')
+      const mimeType = ext === 'jpg' ? 'jpeg' : ext
+      return `data:image/${mimeType};base64,${data.toString("base64")}`
     } catch (error) {
       console.error("Error reading image:", error)
       throw error

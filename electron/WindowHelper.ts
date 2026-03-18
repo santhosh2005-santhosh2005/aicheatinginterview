@@ -72,7 +72,7 @@ export class WindowHelper {
     this.screenWidth = workArea.width
     this.screenHeight = workArea.height
 
-    
+
     const windowSettings: Electron.BrowserWindowConstructorOptions = {
       width: 400,
       height: 600,
@@ -115,7 +115,7 @@ export class WindowHelper {
       }
       // Keep window focusable on Linux for proper interaction
       this.mainWindow.setFocusable(true)
-    } 
+    }
     this.mainWindow.setSkipTaskbar(true)
     this.mainWindow.setAlwaysOnTop(true)
 
@@ -128,10 +128,14 @@ export class WindowHelper {
       if (this.mainWindow) {
         // Center the window first
         this.centerWindow()
+
+        // Ensure content protection is on for anti-cheating (hides from screen share)
+        this.mainWindow.setContentProtection(true)
+
         this.mainWindow.show()
         this.mainWindow.focus()
         this.mainWindow.setAlwaysOnTop(true)
-        console.log("Window is now visible and centered")
+        console.log("Window is now visible, centered, and protected from screen capture")
       }
     })
 
@@ -209,6 +213,7 @@ export class WindowHelper {
     }
 
     this.mainWindow.showInactive()
+    this.mainWindow.setContentProtection(true)
 
     this.isWindowVisible = true
   }
@@ -228,16 +233,16 @@ export class WindowHelper {
 
     const primaryDisplay = screen.getPrimaryDisplay()
     const workArea = primaryDisplay.workAreaSize
-    
+
     // Get current window size or use defaults
     const windowBounds = this.mainWindow.getBounds()
     const windowWidth = windowBounds.width || 400
     const windowHeight = windowBounds.height || 600
-    
+
     // Calculate center position
     const centerX = Math.floor((workArea.width - windowWidth) / 2)
     const centerY = Math.floor((workArea.height - windowHeight) / 2)
-    
+
     // Set window position
     this.mainWindow.setBounds({
       x: centerX,
@@ -245,7 +250,7 @@ export class WindowHelper {
       width: windowWidth,
       height: windowHeight
     })
-    
+
     // Update internal state
     this.windowPosition = { x: centerX, y: centerY }
     this.windowSize = { width: windowWidth, height: windowHeight }
@@ -264,7 +269,7 @@ export class WindowHelper {
     this.mainWindow.focus()
     this.mainWindow.setAlwaysOnTop(true)
     this.isWindowVisible = true
-    
+
     console.log(`Window centered and shown`)
   }
 
